@@ -7,12 +7,22 @@
 //
 
 #import "OBAAppDelegate.h"
+#include "OBASitemapViewController.h"
+
+@interface OBAAppDelegate()
+@property (nonatomic, strong) IBOutlet OBASitemapViewController *sitemapViewController;
+@end
 
 @implementation OBAAppDelegate
 
 - (void)applicationDidFinishLaunching:(NSNotification *)aNotification
 {
-    // Insert code here to initialize your application
+    // Create the new view controller
+    self.sitemapViewController = [[OBASitemapViewController alloc] initWithNibName:@"OBASitemapViewController" bundle:nil];
+    
+    // Add the view controller to the window's content view
+    [self.window.contentView addSubview:self.sitemapViewController.view];
+    self.sitemapViewController.view.frame = ((NSView*)self.window.contentView).bounds;
 }
 
 @end
