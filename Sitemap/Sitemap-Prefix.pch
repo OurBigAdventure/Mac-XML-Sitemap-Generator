@@ -1,0 +1,7 @@
+//
+// Prefix header for all source files of the 'Sitemap' target in the 'Sitemap' project
+//
+
+#ifdef __OBJC__
+    #import <Cocoa/Cocoa.h>
+#endif
