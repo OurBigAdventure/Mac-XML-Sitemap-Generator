@@ -7,7 +7,7 @@
 //
 
 #import "OBAAppDelegate.h"
-#include "OBASitemapViewController.h"
+#import "OBASitemapViewController.h"
 
 @interface OBAAppDelegate()
 @property (nonatomic, strong) IBOutlet OBASitemapViewController *sitemapViewController;
@@ -19,6 +19,15 @@
 {
     // Create the new view controller
     self.sitemapViewController = [[OBASitemapViewController alloc] initWithNibName:@"OBASitemapViewController" bundle:nil];
+    
+    // Sample Data
+    OBASitemapData *data1 = [[OBASitemapData alloc] initWithURL:@"http://www.ourbigadventure.com" rating:3 numLinks:4];
+    OBASitemapData *data2 = [[OBASitemapData alloc] initWithURL:@"http://www.ourbigadventure.com/category/At%20Home" rating:5 numLinks:2];
+    OBASitemapData *data3 = [[OBASitemapData alloc] initWithURL:@"http://www.ourbigadventure.com/category/holidays" rating:1 numLinks:2];
+    OBASitemapData *data4 = [[OBASitemapData alloc] initWithURL:@"http://www.ourbigadventure.com/category/vacations" rating:7 numLinks:7];
+    NSMutableArray *URLs = [NSMutableArray arrayWithObjects:data1, data2, data3, data4, nil];
+    
+    self.sitemapViewController.URLs = URLs;
     
     // Add the view controller to the window's content view
     [self.window.contentView addSubview:self.sitemapViewController.view];

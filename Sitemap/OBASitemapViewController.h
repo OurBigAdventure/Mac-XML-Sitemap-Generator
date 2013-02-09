@@ -7,7 +7,10 @@
 //
 
 #import <Cocoa/Cocoa.h>
+#import "OBASitemapData.h"
 
 @interface OBASitemapViewController : NSViewController
+
+@property (strong) NSMutableArray *URLs;
 
 @end
