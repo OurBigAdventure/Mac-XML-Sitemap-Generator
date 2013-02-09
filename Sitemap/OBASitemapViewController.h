@@ -9,8 +9,10 @@
 #import <Cocoa/Cocoa.h>
 #import "OBASitemapData.h"
 
-@interface OBASitemapViewController : NSViewController
+@interface OBASitemapViewController : NSViewController <NSTextFieldDelegate>
 
 @property (strong) NSMutableArray *URLs;
+
+- (IBAction)crawlRequestedURL:(NSTextField *)sender;
 
 @end

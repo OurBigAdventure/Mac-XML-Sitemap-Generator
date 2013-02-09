@@ -50,4 +50,7 @@
     return [self.URLs count];
 }
 
+- (IBAction)crawlRequestedURL:(NSTextField *)sender {
+    NSLog(@"URL Crawl Requested! URL:%@", sender.stringValue);
+}
 @end
