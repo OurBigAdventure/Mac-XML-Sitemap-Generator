@@ -7,6 +7,7 @@
 //
 
 #import "OBASitemapViewController.h"
+#import "OBAURLData.h"
 #import "TFHpple.h"
 
 @interface OBASitemapViewController ()
@@ -38,7 +39,7 @@
     // Get the maximum number of links to a page in the dictionary
     int maxLinks = INT_MIN;
     for (NSInteger i = 0; i < [keys count]; i++) {
-        int val = [[self.collectedURLs valueForKey:[keys objectAtIndex:i]] intValue];
+        int val = [[self.collectedURLs objectForKey:[keys objectAtIndex:i]] incomingLinks];
         if (val > maxLinks) {
             maxLinks = val;
         }
@@ -59,15 +60,19 @@
         if (keys == nil || [keys count] == 0) {
             cellView.textField.stringValue = @"";
         } else {
-            cellView.textField.stringValue = [self.collectedURLs valueForKey:[keys objectAtIndex:row]];
+            cellView.textField.stringValue = [NSString stringWithFormat:@"%d", [[self.collectedURLs objectForKey:[keys objectAtIndex:row]] incomingLinks]];
         }
         return cellView;
     } else if ([tableColumn.identifier isEqualToString:@"CalculatedPriority"]) {
         if (keys == nil || [keys count] == 0) {
             cellView.textField.stringValue = @"";
         } else {
-            float rating = [[self.collectedURLs valueForKey:[keys objectAtIndex:row]] floatValue];
-            cellView.textField.stringValue = [NSString stringWithFormat:@"%0.1f", (rating / maxLinks)];
+            float rating = [[self.collectedURLs objectForKey:[keys objectAtIndex:row]] incomingLinks];
+            float priority = rating / maxLinks;
+            if (priority < 0.5) {
+                priority = priority + 0.2;
+            }
+            cellView.textField.stringValue = [NSString stringWithFormat:@"%0.1f", priority];
         }
         return cellView;
     }
@@ -79,13 +84,12 @@
 }
 
 - (IBAction)crawlRequestedURL:(NSTextField *)sender {
-    NSLog(@"URL Crawl Requested! URL:%@", sender.stringValue);
     // Verify that a URL is detected
     NSDataDetector *detect = [[NSDataDetector alloc] initWithTypes:(NSTextCheckingTypes)NSTextCheckingTypeLink error:nil];
     NSArray *matches = [detect matchesInString:sender.stringValue options:0 range:NSMakeRange(0, [sender.stringValue length])];
     
     if ([matches count] > 0 && [sender.stringValue hasPrefix:@"http"]) {
-        NSLog(@"URL Good");
+        // Good URL verified
         if ([sender.stringValue hasSuffix:@"/"]) {
             sender.stringValue = [sender.stringValue substringToIndex:[sender.stringValue length] -1];
         }
@@ -95,7 +99,6 @@
         [self parseURL:providedURL];
     } else {
         // Popup Alert saying URL bad
-        NSLog(@"URL Bad");
         NSAlert *badURLAlert = [[NSAlert alloc] init];
         [badURLAlert addButtonWithTitle:@"OK"];
         [badURLAlert setMessageText:@"Sorry, Bad URL"];
@@ -108,19 +111,12 @@
 
 - (void)parseURL:(NSURL*)URL
 {
-    NSLog(@"Parsing URL: %@", URL);
     // Check for URL in visited Array
     if ([self.visitedURLs containsObject:URL]) {
-        NSLog(@"URL Already Visited...");
-        NSLog(@"%@", self.visitedURLs);
         // Add 1 to the count of links to this URL
-        NSNumber *linkCount = [NSNumber numberWithInt:([[self.collectedURLs valueForKey:[URL absoluteString]] intValue] + 1)];
-        NSLog(@"Updating Link Count... (%@)", linkCount);
-        [self.collectedURLs setObject:linkCount forKey:[URL absoluteString]];
-        NSLog(@"%@", self.collectedURLs);
+        [[self.collectedURLs objectForKey:[URL absoluteString]] addToIncomingLinks];
         // Done parsing this URL, nothing else to do here...
     } else {
-        NSLog(@"New URL...");
         NSData *requestHtmlData = [NSData dataWithContentsOfURL:URL];
         TFHpple *urlParser = [TFHpple hppleWithHTMLData:requestHtmlData];
         
@@ -128,15 +124,10 @@
         NSArray *requestNodes = [urlParser searchWithXPathQuery:requestXpathQueryString];
         
         [self.visitedURLs addObject:URL];
-        NSLog(@"Added to Visited List...");
-        NSLog(@"%@", self.visitedURLs);
-        NSLog(@"Looping through discovered URLs...");
         for (TFHppleElement *element in requestNodes) {
-            NSLog(@"discovered: %@", [element objectForKey:@"href"]);
             // Filter and Clean format of URL
             NSString *workingURL = [element objectForKey:@"href"];
             if ([workingURL hasPrefix:@"http"]) {
-                NSLog(@"Full http link found...");
                 // this is a full URL reference, make sure it's local
                 NSURL *tempURL = [NSURL URLWithString:workingURL];
                 if ([tempURL host] == [URL host]) {
@@ -147,39 +138,40 @@
                     continue;
                 }
             } else {
-                NSLog(@"Relative link found...");
                 // this is a relative URL
                 if ([workingURL hasPrefix:@"/"]) {
                     // this URL begins with a slash, remove it for consistancy
                     workingURL = [workingURL substringFromIndex:1];
                 }
-//                NSError *error = NULL;
-//                NSRegularExpression *regex = [NSRegularExpression regularExpressionWithPattern:@"../" options:NSRegularExpressionCaseInsensitive error:&error];
-//                NSUInteger numberOfMatches = [regex numberOfMatchesInString:workingURL options:0 range:NSMakeRange(0, [workingURL length])];
-//                if (numberOfMatches > 0) {
-//                    NSLog(@"Reference to upper directory '../' found...");
-//                    // found '../', drop same number of folders from incoming URL
-//                    NSMutableArray *pathComponents = [[[NSURL URLWithString:workingURL] pathComponents] mutableCopy];
-//                    for (NSInteger i = 0; i < numberOfMatches; i++) {
-//                        [pathComponents removeLastObject];
-//                    }
-//                    workingURL = [[pathComponents valueForKey:@"description"] componentsJoinedByString:@""];
-//                }
+                NSArray *tempArray = [workingURL componentsSeparatedByString:@"../"];
+                int numberOfMatches = [tempArray count] - 1;
+                if (numberOfMatches > 0) {
+                    // found '../', drop same number of folders from incoming URL
+                    NSMutableArray *pathComponents = [[[NSURL URLWithString:workingURL] pathComponents] mutableCopy];
+                    for (NSInteger i = 0; i < numberOfMatches; i++) {
+                        [pathComponents removeLastObject];
+                        if ([[pathComponents lastObject] isEqualToString:@"/"]) {
+                            [pathComponents removeLastObject];                            
+                        }
+                    }
+                    workingURL = [[pathComponents valueForKey:@"description"] componentsJoinedByString:@""];
+                }
                 workingURL = [NSString stringWithFormat:@"%@://%@/%@", [URL scheme], [URL host], workingURL];
-                NSLog(@"Completed construction of full URL: %@", workingURL);
             }
-//            NSURL *formattedURL = [NSURL URLWithString:workingURL];
+            
+            NSURL *formattedURL = [NSURL URLWithString:workingURL];
             // Verify the URL is of the file types we are looking for (.php, .htm, .html, .asp, .aspx, /)
-//            if (!([[formattedURL lastPathComponent] hasSuffix:@".php"] || [[formattedURL lastPathComponent] hasSuffix:@".htm"] || [[formattedURL lastPathComponent] hasSuffix:@".html"] || [[formattedURL lastPathComponent] hasSuffix:@".asp"] || [[formattedURL lastPathComponent] hasSuffix:@".aspx"] || [[formattedURL lastPathComponent] hasSuffix:@"/"])) {
-//                // extension does not match what we are interested in
-//                NSLog(@"Last Path Component is No Good: %@", [formattedURL lastPathComponent]);
-//                continue;
-//            }
-            NSLog(@"Done filtering new URLs...");
+            if ([[formattedURL lastPathComponent] rangeOfString:@"."].location != NSNotFound) {
+                if (!([[formattedURL lastPathComponent] hasSuffix:@".php"] || [[formattedURL lastPathComponent] hasSuffix:@".htm"] || [[formattedURL lastPathComponent] hasSuffix:@".html"] || [[formattedURL lastPathComponent] hasSuffix:@".asp"] || [[formattedURL lastPathComponent] hasSuffix:@".aspx"] || [[formattedURL lastPathComponent] hasSuffix:@"/"])) {
+                    // extension does not match what we are interested in
+                    continue;
+                }
+            }
+
             // Add filtered URL to Dictionary with link count of 1
-            NSLog(@"Adding URL to Dictionary...");
-            [self.collectedURLs setObject:[NSNumber numberWithInt:1] forKey:workingURL];
-            NSLog(@"%@", self.collectedURLs);
+            if (![self.collectedURLs objectForKey:workingURL]) {
+                [self.collectedURLs setObject:[[OBAURLData alloc] init] forKey:workingURL];
+            }
             // Reload Table
             [self.crawlTableView reloadData];
             // parse found URLs
