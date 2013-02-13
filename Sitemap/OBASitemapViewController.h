@@ -7,11 +7,13 @@
 //
 
 #import <Cocoa/Cocoa.h>
-#import "OBASitemapData.h"
+#import <Foundation/Foundation.h>
 
 @interface OBASitemapViewController : NSViewController <NSTextFieldDelegate>
 
 @property (strong) NSMutableArray *URLs;
+@property (strong) IBOutlet NSTableView *crawlTableView;
+@property (strong) IBOutlet NSTextField *crawlRequestTextField;
 
 - (IBAction)crawlRequestedURL:(NSTextField *)sender;
 
