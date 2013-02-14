@@ -16,5 +16,5 @@
 @property (strong) IBOutlet NSTextField *crawlRequestTextField;
 
 - (IBAction)crawlRequestedURL:(NSTextField *)sender;
-
+- (IBAction)writeXMLSitemapToFile:(NSButton *)sender;
 @end

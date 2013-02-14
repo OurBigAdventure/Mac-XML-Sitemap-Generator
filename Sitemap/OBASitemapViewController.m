@@ -154,7 +154,7 @@
                             [pathComponents removeLastObject];                            
                         }
                     }
-                    workingURL = [[pathComponents valueForKey:@"description"] componentsJoinedByString:@""];
+                    workingURL = [[pathComponents valueForKey:@"description"] componentsJoinedByString:@"/"];
                 }
                 workingURL = [NSString stringWithFormat:@"%@://%@/%@", [URL scheme], [URL host], workingURL];
             }
@@ -180,4 +180,66 @@
     }
 }
 
+- (IBAction)writeXMLSitemapToFile:(NSButton *)sender
+{
+    // Get the keys to the collectedURLs dictionary
+    NSArray *keys = [self.collectedURLs allKeys];
+    
+    // Get the maximum number of links to a page in the dictionary
+    int maxLinks = INT_MIN;
+    for (NSInteger i = 0; i < [keys count]; i++) {
+        int val = [[self.collectedURLs objectForKey:[keys objectAtIndex:i]] incomingLinks];
+        if (val > maxLinks) {
+            maxLinks = val;
+        }
+    }
+    
+    //    <?xml version="1.0" encoding="UTF-8"?>
+    //
+    //    <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+    //
+    //    <url>
+    //
+    //    <loc>http://www.example.com/</loc>
+    //
+    //    <lastmod>2005-01-01</lastmod>
+    //
+    //    <changefreq>monthly</changefreq>
+    //
+    //    <priority>0.8</priority>
+    //
+    //    </url>
+    //
+    //    </urlset>
+    NSString *xmlExportString = @"<?xml version='1.0' encoding='UTF-8'?>\n<urlset xmlns='http://www.sitemaps.org/schemas/sitemap/0.9'>\n";
+    for (int i = 0; i < [keys count]; i++) {
+        xmlExportString = [xmlExportString stringByAppendingString:[NSString stringWithFormat:@"    <url>\n"]];
+        xmlExportString = [xmlExportString stringByAppendingString:[NSString stringWithFormat:@"        <loc>%@</loc>\n", [keys objectAtIndex:i]]];
+        float rating = [[self.collectedURLs objectForKey:[keys objectAtIndex:i]] incomingLinks];
+        float priority = rating / maxLinks;
+        if (priority < 0.5) {
+            priority = priority + 0.2;
+        }
+        xmlExportString = [xmlExportString stringByAppendingString:[NSString stringWithFormat:@"        <priority>%0.1f</priority>\n", priority]];
+        xmlExportString = [xmlExportString stringByAppendingString:[NSString stringWithFormat:@"    </url>\n"]];
+    }
+    xmlExportString = [xmlExportString stringByAppendingString:[NSString stringWithFormat:@"</urlset>"]];
+    NSError *error = nil;
+    [xmlExportString writeToURL:[self get] atomically:YES encoding:NSUTF8StringEncoding error:&error];
+//    [xmlExportString writeToFile:@"/Users/chris/Desktop/Sitemap.xml" atomically:YES encoding:NSUTF8StringEncoding error:&error];
+    if (error) {
+        NSLog(@"Fail: %@", [error localizedDescription]);
+    }
+    
+}
+
+-(NSURL *)get {
+    // thank you abarnert: http://stackoverflow.com/questions/10906822/objective-c-directory-picker-osx-10-7
+    NSOpenPanel *panel = [NSOpenPanel openPanel];
+    [panel setAllowsMultipleSelection:NO];
+    [panel setCanChooseDirectories:YES];
+    [panel setCanChooseFiles:NO];
+    if ([panel runModal] != NSFileHandlingPanelOKButton) return nil;
+    return [NSURL URLWithString:[NSString stringWithFormat:@"%@/%@", [[[panel URLs] lastObject] absoluteString], @"sitemap.xml"]];
+}
 @end
