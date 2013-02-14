@@ -111,6 +111,7 @@
 
 - (void)parseURL:(NSURL*)URL
 {
+    NSLog(@"Parsing: %@", URL);
     // Check for URL in visited Array
     if ([self.visitedURLs containsObject:URL]) {
         // Add 1 to the count of links to this URL
@@ -161,7 +162,7 @@
             
             NSURL *formattedURL = [NSURL URLWithString:workingURL];
             // Verify the URL is of the file types we are looking for (.php, .htm, .html, .asp, .aspx, /)
-            if ([[formattedURL lastPathComponent] rangeOfString:@"."].location != NSNotFound) {
+            if ([[formattedURL lastPathComponent] rangeOfString:@"."].location != NSNotFound && [[formattedURL lastPathComponent] rangeOfString:@":"].location != NSNotFound) {
                 if (!([[formattedURL lastPathComponent] hasSuffix:@".php"] || [[formattedURL lastPathComponent] hasSuffix:@".htm"] || [[formattedURL lastPathComponent] hasSuffix:@".html"] || [[formattedURL lastPathComponent] hasSuffix:@".asp"] || [[formattedURL lastPathComponent] hasSuffix:@".aspx"] || [[formattedURL lastPathComponent] hasSuffix:@"/"])) {
                     // extension does not match what we are interested in
                     continue;
