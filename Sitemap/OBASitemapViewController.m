@@ -140,22 +140,33 @@
                 }
             } else {
                 // this is a relative URL
-                if ([workingURL hasPrefix:@"/"]) {
+                NSMutableArray *pathComponents = [[[NSURL URLWithString:workingURL] pathComponents] mutableCopy];
+                if (!pathComponents) {
+                    continue;
+                }
+                NSMutableArray *mainPathComponents = [[URL pathComponents] mutableCopy];
+                int loopCount = (int)[pathComponents count];
+                for (NSInteger i = 0; i < loopCount; i++) {
+                    // rebuild path from URL leaving off the same number of components as workingURL has '..'
+                    if ([[pathComponents objectAtIndex:i] isEqualToString:@".."] || [[pathComponents objectAtIndex:i] isEqualToString:@"."]) {
+                        [mainPathComponents removeLastObject];
+                    }
+                }
+                for (NSInteger i = loopCount - 1; i >= 0; i--) {
+                    if ([[pathComponents objectAtIndex:i] isEqualToString:@".."] || [[pathComponents objectAtIndex:i] isEqualToString:@""] || [[pathComponents objectAtIndex:i] isEqualToString:@"."]) {
+                        [pathComponents removeObjectAtIndex:i];
+                    }
+                }
+                // piece the components back together
+                workingURL = [[mainPathComponents valueForKey:@"description"] componentsJoinedByString:@"/"];
+                if ([workingURL isEqualToString:@""]) {
+                    workingURL = [workingURL stringByAppendingString:[NSString stringWithFormat:@"%@", [[pathComponents valueForKey:@"description"] componentsJoinedByString:@"/"]]];
+                } else {
+                    workingURL = [workingURL stringByAppendingString:[NSString stringWithFormat:@"/%@", [[pathComponents valueForKey:@"description"] componentsJoinedByString:@"/"]]];
+                }
+                while ([workingURL hasPrefix:@"/"]) {
                     // this URL begins with a slash, remove it for consistancy
                     workingURL = [workingURL substringFromIndex:1];
-                }
-                NSArray *tempArray = [workingURL componentsSeparatedByString:@"../"];
-                int numberOfMatches = [tempArray count] - 1;
-                if (numberOfMatches > 0) {
-                    // found '../', drop same number of folders from incoming URL
-                    NSMutableArray *pathComponents = [[[NSURL URLWithString:workingURL] pathComponents] mutableCopy];
-                    for (NSInteger i = 0; i < numberOfMatches; i++) {
-                        [pathComponents removeLastObject];
-                        if ([[pathComponents lastObject] isEqualToString:@"/"]) {
-                            [pathComponents removeLastObject];                            
-                        }
-                    }
-                    workingURL = [[pathComponents valueForKey:@"description"] componentsJoinedByString:@"/"];
                 }
                 workingURL = [NSString stringWithFormat:@"%@://%@/%@", [URL scheme], [URL host], workingURL];
             }
@@ -195,23 +206,6 @@
         }
     }
     
-    //    <?xml version="1.0" encoding="UTF-8"?>
-    //
-    //    <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-    //
-    //    <url>
-    //
-    //    <loc>http://www.example.com/</loc>
-    //
-    //    <lastmod>2005-01-01</lastmod>
-    //
-    //    <changefreq>monthly</changefreq>
-    //
-    //    <priority>0.8</priority>
-    //
-    //    </url>
-    //
-    //    </urlset>
     NSString *xmlExportString = @"<?xml version='1.0' encoding='UTF-8'?>\n<urlset xmlns='http://www.sitemaps.org/schemas/sitemap/0.9'>\n";
     for (int i = 0; i < [keys count]; i++) {
         xmlExportString = [xmlExportString stringByAppendingString:[NSString stringWithFormat:@"    <url>\n"]];
