@@ -112,12 +112,15 @@
 - (void)parseURL:(NSURL*)URL
 {
     NSLog(@"Parsing: %@", URL);
+    self.currentCrawlLabel.stringValue = [URL absoluteString];
     // Check for URL in visited Array
     if ([self.visitedURLs containsObject:URL]) {
+        NSLog(@"Already Visited, adding to visit count");
         // Add 1 to the count of links to this URL
         [[self.collectedURLs objectForKey:[URL absoluteString]] addToIncomingLinks];
         // Done parsing this URL, nothing else to do here...
     } else {
+        NSLog(@"New URL");
         NSData *requestHtmlData = [NSData dataWithContentsOfURL:URL];
         TFHpple *urlParser = [TFHpple hppleWithHTMLData:requestHtmlData];
         
@@ -128,60 +131,108 @@
         for (TFHppleElement *element in requestNodes) {
             // Filter and Clean format of URL
             NSString *workingURL = [element objectForKey:@"href"];
-            if ([workingURL hasPrefix:@"http"]) {
+            NSLog(@"workingURL: %@", workingURL);
+            NSURL *tempURL = [NSURL URLWithString:workingURL];
+            if ([[tempURL scheme] isEqualToString:@"http"] || [[tempURL scheme] isEqualToString:@"https"]) {
+                NSLog(@"This is a Full URL");
                 // this is a full URL reference, make sure it's local
-                NSURL *tempURL = [NSURL URLWithString:workingURL];
                 if ([tempURL host] == [URL host]) {
                     // This is a local URL
+                    NSLog(@"This is a URL for the domain we are crawling");
                 } else {
                     // This is a non-local URL
                     // stop following this URL thread
+                    NSLog(@"This is a URL for another domain, skip it");
                     continue;
                 }
+            } else if ([tempURL scheme] != NULL) {
+                NSLog(@"Odd Scheme: %@", [tempURL scheme]);
+                // This is a non http or https URL
+                // stop following this URL thread
+                continue;
             } else {
+                NSLog(@"This is a relative URL");
                 // this is a relative URL
-                NSMutableArray *pathComponents = [[[NSURL URLWithString:workingURL] pathComponents] mutableCopy];
+                NSMutableArray *pathComponents = [[tempURL pathComponents] mutableCopy];
                 if (!pathComponents) {
                     continue;
                 }
                 NSMutableArray *mainPathComponents = [[URL pathComponents] mutableCopy];
-                int loopCount = (int)[pathComponents count];
-                for (NSInteger i = 0; i < loopCount; i++) {
-                    // rebuild path from URL leaving off the same number of components as workingURL has '..'
-                    if ([[pathComponents objectAtIndex:i] isEqualToString:@".."] || [[pathComponents objectAtIndex:i] isEqualToString:@"."]) {
-                        [mainPathComponents removeLastObject];
+                
+                // There are four types of relative paths
+                // ./           asks for the current directory
+                // ../          asks for the directory above the current directory (multiples possible)
+                // /            asks for the base URL
+                // file.xxx     asks for a file in the current directory
+                
+                // Filter the relative URL based on the above cases
+                NSLog(@"pathComponents: %@", pathComponents);
+                if ([[pathComponents objectAtIndex:0] isEqualToString:@"."]) {
+                    NSLog(@"./ case");
+                    // if the last component of the main path is a file reference, remove it
+                    // Verify the URL is of the file types we are looking for (.php, .htm, .html, .asp, .aspx, /)
+                    if ([[mainPathComponents lastObject] rangeOfString:@"."].location != NSNotFound) {
+                        if (!([[mainPathComponents lastObject] hasSuffix:@".php"] || [[mainPathComponents lastObject] hasSuffix:@".htm"] || [[mainPathComponents lastObject] hasSuffix:@".html"] || [[mainPathComponents lastObject] hasSuffix:@".asp"] || [[mainPathComponents lastObject] hasSuffix:@".aspx"] || [[mainPathComponents lastObject] hasSuffix:@"/"])) {
+                            // extension does not match what we are interested in
+                            NSLog(@"1. Not the type of URL we wish to log in our sitemap, skip");
+                            continue;
+                        } else {
+                            [mainPathComponents removeLastObject];
+                        }
                     }
-                }
-                for (NSInteger i = loopCount - 1; i >= 0; i--) {
-                    if ([[pathComponents objectAtIndex:i] isEqualToString:@".."] || [[pathComponents objectAtIndex:i] isEqualToString:@""] || [[pathComponents objectAtIndex:i] isEqualToString:@"."]) {
-                        [pathComponents removeObjectAtIndex:i];
+                    [pathComponents removeObjectAtIndex:0];
+                } else if ([[pathComponents objectAtIndex:0] isEqualToString:@".."]) {
+                    NSLog(@"../ case");
+                    // Because we can have multiple ..'s loop through each component
+                    int loopCount = (int)[pathComponents count];
+                    for (NSInteger i = 0; i < loopCount; i++) {
+                        // rebuild path from URL leaving off the same number of components as workingURL has '..'
+                        if ([[pathComponents objectAtIndex:i] isEqualToString:@".."]) {
+                            [mainPathComponents removeLastObject];
+                        }
                     }
-                }
-                // piece the components back together
-                workingURL = [[mainPathComponents valueForKey:@"description"] componentsJoinedByString:@"/"];
-                if ([workingURL isEqualToString:@""]) {
-                    workingURL = [workingURL stringByAppendingString:[NSString stringWithFormat:@"%@", [[pathComponents valueForKey:@"description"] componentsJoinedByString:@"/"]]];
+                    for (NSInteger i = loopCount - 1; i >= 0; i--) {
+                        if ([[pathComponents objectAtIndex:i] isEqualToString:@".."]) {
+                            [pathComponents removeObjectAtIndex:i];
+                        }
+                    }
+                } else if ([[pathComponents objectAtIndex:0] isEqualToString:@"/"]) {
+                    NSLog(@"/ case");
+                    // remove the empty component
+                    [pathComponents removeObjectAtIndex:0];
+                    // remove everything back to the root domain
+                    [mainPathComponents removeAllObjects];
                 } else {
-                    workingURL = [workingURL stringByAppendingString:[NSString stringWithFormat:@"/%@", [[pathComponents valueForKey:@"description"] componentsJoinedByString:@"/"]]];
+                    NSLog(@"valid case");
+                    // relative path should be valid
                 }
+                workingURL = [NSString stringWithFormat:@"%@/%@", [[mainPathComponents valueForKey:@"description"] componentsJoinedByString:@"/"], [[pathComponents valueForKey:@"description"] componentsJoinedByString:@"/"]];
                 while ([workingURL hasPrefix:@"/"]) {
                     // this URL begins with a slash, remove it for consistancy
                     workingURL = [workingURL substringFromIndex:1];
                 }
+                // All types of relative path should be cleaned and prepped to match
+                // 1. no leading slash
+                // 2. only valid folder/file path remaining
+                // 3. main URL path cleaned to match relative path's requirements
+                                
                 workingURL = [NSString stringWithFormat:@"%@://%@/%@", [URL scheme], [URL host], workingURL];
             }
+            NSLog(@"Final working URL: %@", workingURL);
             
             NSURL *formattedURL = [NSURL URLWithString:workingURL];
             // Verify the URL is of the file types we are looking for (.php, .htm, .html, .asp, .aspx, /)
             if ([[formattedURL lastPathComponent] rangeOfString:@"."].location != NSNotFound && [[formattedURL lastPathComponent] rangeOfString:@":"].location != NSNotFound) {
                 if (!([[formattedURL lastPathComponent] hasSuffix:@".php"] || [[formattedURL lastPathComponent] hasSuffix:@".htm"] || [[formattedURL lastPathComponent] hasSuffix:@".html"] || [[formattedURL lastPathComponent] hasSuffix:@".asp"] || [[formattedURL lastPathComponent] hasSuffix:@".aspx"] || [[formattedURL lastPathComponent] hasSuffix:@"/"])) {
                     // extension does not match what we are interested in
+                    NSLog(@"Not the type of URL we wish to log in our sitemap, skip");
                     continue;
                 }
             }
 
             // Add filtered URL to Dictionary with link count of 1
             if (![self.collectedURLs objectForKey:workingURL]) {
+                NSLog(@"Adding to collected URLs");
                 [self.collectedURLs setObject:[[OBAURLData alloc] init] forKey:workingURL];
             }
             // Reload Table
