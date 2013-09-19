@@ -112,7 +112,6 @@
 - (void)parseURL:(NSURL*)URL
 {
     NSLog(@"Parsing: %@", URL);
-    self.currentCrawlLabel.stringValue = [URL absoluteString];
     // Check for URL in visited Array
     if ([self.visitedURLs containsObject:URL]) {
         NSLog(@"Already Visited, adding to visit count");
@@ -218,7 +217,7 @@
                 // 1. no leading slash
                 // 2. only valid folder/file path remaining
                 // 3. main URL path cleaned to match relative path's requirements
-                                
+                
                 workingURL = [NSString stringWithFormat:@"%@://%@/%@", [URL scheme], [URL host], workingURL];
             }
             NSLog(@"Final working URL: %@", workingURL);
