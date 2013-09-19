@@ -204,7 +204,10 @@
                     [mainPathComponents removeAllObjects];
                 } else {
                     NSLog(@"valid case");
-                    // relative path should be valid
+					// remove last object if not '/' to stay in current directory
+					if (![[mainPathComponents lastObject] isEqualToString:@"/"]) {
+						[mainPathComponents removeLastObject];
+					}
                 }
                 workingURL = [NSString stringWithFormat:@"%@/%@", [[mainPathComponents valueForKey:@"description"] componentsJoinedByString:@"/"], [[pathComponents valueForKey:@"description"] componentsJoinedByString:@"/"]];
                 while ([workingURL hasPrefix:@"/"]) {
