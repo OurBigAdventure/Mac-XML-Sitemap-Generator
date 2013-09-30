@@ -111,7 +111,7 @@
 
 - (void)parseURL:(NSURL*)URL
 {
-    NSLog(@"Parsing: %@", URL);
+    NSLog(@"\n\nParsing: %@", URL);
     // Check for URL in visited Array
     if ([self.visitedURLs containsObject:URL]) {
         NSLog(@"Already Visited, adding to visit count");
@@ -149,11 +149,32 @@
                 // This is a non http or https URL
                 // stop following this URL thread
                 continue;
+			} else if ([[tempURL description] hasPrefix:@"?"]) {
+				// check to see if URL has ? as a beginning
+				// we can't use pathComponents because it strips query strings
+				NSLog(@"This is a relative URL with only a querystring");
+				if ([[URL description] rangeOfString:@"?"].location != NSNotFound) {
+					// Remove the existing querystring then add this one in its place
+					workingURL = [[[URL description] substringToIndex:[[URL description] rangeOfString:@"?"].location] stringByAppendingString:[tempURL description]];
+				} else {
+					workingURL = [[URL description] stringByAppendingString:[tempURL description]];
+				}
             } else {
-                NSLog(@"This is a relative URL");
+                NSLog(@"This is a simple relative URL");
                 // this is a relative URL
-                NSMutableArray *pathComponents = [[tempURL pathComponents] mutableCopy];
-                if (!pathComponents) {
+				NSString *queryString;
+				if ([[tempURL description] rangeOfString:@"?"].location != NSNotFound) {
+					// There is a query string in this relative URL
+					// save it out and add it back after we handle the relative structure
+					queryString = [[tempURL description] substringFromIndex:[[tempURL description] rangeOfString:@"?"].location];
+					NSLog(@"QueryString: %@", queryString);
+				}
+				NSMutableArray *pathComponents = [[tempURL pathComponents] mutableCopy];
+                if (!pathComponents && ![workingURL hasPrefix:@"?"]) {
+					// If no pathComponents skip ahead
+					//
+					// The problem here is that pathComponents strips query strings
+					// so check for querystrings as well before skipping ahead
                     continue;
                 }
                 NSMutableArray *mainPathComponents = [[URL pathComponents] mutableCopy];
@@ -163,7 +184,7 @@
                 // ../          asks for the directory above the current directory (multiples possible)
                 // /            asks for the base URL
                 // file.xxx     asks for a file in the current directory
-                
+				
                 // Filter the relative URL based on the above cases
                 NSLog(@"pathComponents: %@", pathComponents);
                 if ([[pathComponents objectAtIndex:0] isEqualToString:@"."]) {
@@ -202,23 +223,38 @@
                     // remove everything back to the root domain
                     [mainPathComponents removeAllObjects];
                 } else {
-                    NSLog(@"valid case");
-					// remove last object if not '/' to stay in current directory path
+                    NSLog(@"file.xxx case");
+					NSLog(@"--queryString: %@", queryString);
+                    // remove last object if not '/' to stay in current path
 					if (![[mainPathComponents lastObject] isEqualToString:@"/"]) {
+						NSLog(@"removing: '%@' from main path", [mainPathComponents lastObject]);
 						[mainPathComponents removeLastObject];
 					}
                 }
-                workingURL = [NSString stringWithFormat:@"%@/%@", [[mainPathComponents valueForKey:@"description"] componentsJoinedByString:@"/"], [[pathComponents valueForKey:@"description"] componentsJoinedByString:@"/"]];
+				workingURL = [NSString stringWithFormat:@"%@/%@", [[mainPathComponents valueForKey:@"description"] componentsJoinedByString:@"/"], [[pathComponents valueForKey:@"description"] componentsJoinedByString:@"/"]];
                 while ([workingURL hasPrefix:@"/"]) {
                     // this URL begins with a slash, remove it for consistancy
                     workingURL = [workingURL substringFromIndex:1];
                 }
+				
+				// Add querystring back in if it exists
+				if ([queryString length] > 0) {
+					// Check to see if pathComponents is null
+					if (!pathComponents) {
+						// this is the href='?...' case, add current page back in before querystring
+						if (![[mainPathComponents lastObject] isEqualToString:@"/"]) {
+							workingURL = [workingURL stringByAppendingString:[mainPathComponents lastObject]];
+						}
+					}
+					workingURL = [workingURL stringByAppendingString:queryString];
+				}
+				
                 // All types of relative path should be cleaned and prepped to match
                 // 1. no leading slash
                 // 2. only valid folder/file path remaining
                 // 3. main URL path cleaned to match relative path's requirements
                 
-                workingURL = [NSString stringWithFormat:@"%@://%@/%@", [URL scheme], [URL host], workingURL];
+				workingURL = [NSString stringWithFormat:@"%@://%@/%@", [URL scheme], [URL host], workingURL];
             }
             NSLog(@"Final working URL: %@", workingURL);
             
@@ -231,7 +267,7 @@
                     continue;
                 }
             }
-
+			
             // Add filtered URL to Dictionary with link count of 1
             if (![self.collectedURLs objectForKey:workingURL]) {
                 NSLog(@"Adding to collected URLs");
