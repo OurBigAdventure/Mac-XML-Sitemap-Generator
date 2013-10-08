@@ -14,7 +14,6 @@
 @property (strong) NSMutableArray *URLs;
 @property (strong) IBOutlet NSTableView *crawlTableView;
 @property (strong) IBOutlet NSTextField *crawlRequestTextField;
-@property (strong) IBOutlet NSTextField *currentCrawlLabel;
 
 - (IBAction)crawlRequestedURL:(NSTextField *)sender;
 - (IBAction)writeXMLSitemapToFile:(NSButton *)sender;
