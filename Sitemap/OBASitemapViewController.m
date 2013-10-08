@@ -96,7 +96,10 @@
         NSURL *providedURL = [NSURL URLWithString:sender.stringValue];
         [self.visitedURLs removeAllObjects];
         [self.collectedURLs removeAllObjects];
-        [self parseURL:providedURL];
+		// Start Crawl in secondary thread
+		dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+			[self parseURL:providedURL];
+		});
     } else {
         // Popup Alert saying URL bad
         NSAlert *badURLAlert = [[NSAlert alloc] init];
@@ -227,8 +230,15 @@
 					NSLog(@"--queryString: %@", queryString);
                     // remove last object if not '/' to stay in current path
 					if (![[mainPathComponents lastObject] isEqualToString:@"/"]) {
-						NSLog(@"removing: '%@' from main path", [mainPathComponents lastObject]);
-						[mainPathComponents removeLastObject];
+						// but only if the last object is a file not a folder name
+						if ([[mainPathComponents lastObject] rangeOfString:@"."].location != NSNotFound) {
+							// This is a file name, remove the last object
+							NSLog(@"removing: '%@' from main path", [mainPathComponents lastObject]);
+							[mainPathComponents removeLastObject];
+						} else {
+							// This is a folder name leave it intact
+							
+						}
 					}
                 }
 				workingURL = [NSString stringWithFormat:@"%@/%@", [[mainPathComponents valueForKey:@"description"] componentsJoinedByString:@"/"], [[pathComponents valueForKey:@"description"] componentsJoinedByString:@"/"]];
@@ -273,8 +283,10 @@
                 NSLog(@"Adding to collected URLs");
                 [self.collectedURLs setObject:[[OBAURLData alloc] init] forKey:workingURL];
             }
-            // Reload Table
-            [self.crawlTableView reloadData];
+            // Reload Table back on main queue
+			dispatch_async(dispatch_get_main_queue(), ^{
+				[self.crawlTableView reloadData];
+			});
             // parse found URLs
             [self parseURL:[NSURL URLWithString:workingURL]];
         }
